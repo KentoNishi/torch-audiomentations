@@ -1,10 +1,12 @@
 import random
-from typing import List
+from typing import List, Union, Optional, Tuple
 
-import torch
-import typing
+from torch import Tensor
+import torch.nn
+import warnings
 
 from torch_audiomentations.core.transforms_interface import BaseWaveformTransform
+from torch_audiomentations.utils.object_dict import ObjectDict
 
 
 class BaseCompose(torch.nn.Module):
@@ -12,19 +14,22 @@ class BaseCompose(torch.nn.Module):
 
     def __init__(
         self,
-        transforms: List[torch.nn.Module],
+        transforms: List[
+            torch.nn.Module
+        ],  # FIXME: do we really want to support regular nn.Module?
         shuffle: bool = False,
         p: float = 1.0,
         p_mode="per_batch",
+        output_type: Optional[str] = None,
     ):
         """
         :param transforms: List of waveform transform instances
         :param shuffle: Should the order of transforms be shuffled?
         :param p: The probability of applying the Compose to the given batch.
         :param p_mode: Only "per_batch" is supported at the moment.
+        :param output_type: This optional argument can be set to "tensor" or "dict".
         """
         super().__init__()
-        self.transforms = torch.nn.ModuleList(transforms)
         self.p = p
         if p_mode != "per_batch":
             # TODO: Support per_example as well? And per_channel?
@@ -32,6 +37,33 @@ class BaseCompose(torch.nn.Module):
         self.p_mode = p_mode
         self.shuffle = shuffle
         self.are_parameters_frozen = False
+
+        if output_type is None:
+            warnings.warn(
+                f"Transforms now expect an `output_type` argument that currently defaults to 'tensor', "
+                f"will default to 'dict' in v0.12, and will be removed in v0.13. Make sure to update "
+                f"your code to something like:\n"
+                f"  >>> augment = {self.__class__.__name__}(..., output_type='dict')\n"
+                f"  >>> augmented_samples = augment(samples).samples",
+                FutureWarning,
+            )
+            output_type = "tensor"
+
+        elif output_type == "tensor":
+            warnings.warn(
+                f"`output_type` argument will default to 'dict' in v0.12, and will be removed in v0.13. "
+                f"Make sure to update your code to something like:\n"
+                f"your code to something like:\n"
+                f"  >>> augment = {self.__class__.__name__}(..., output_type='dict')\n"
+                f"  >>> augmented_samples = augment(samples).samples",
+                DeprecationWarning,
+            )
+
+        self.output_type = output_type
+
+        self.transforms = torch.nn.ModuleList(transforms)
+        for tfm in self.transforms:
+            tfm.output_type = "dict"
 
     def freeze_parameters(self):
         """
@@ -63,18 +95,36 @@ class BaseCompose(torch.nn.Module):
 
 
 class Compose(BaseCompose):
-    def forward(self, samples, sample_rate: typing.Optional[int] = None):
+    def forward(
+        self,
+        samples: Tensor = None,
+        sample_rate: Optional[int] = None,
+        targets: Optional[Tensor] = None,
+        target_rate: Optional[int] = None,
+    ) -> ObjectDict:
+
+        inputs = ObjectDict(
+            samples=samples,
+            sample_rate=sample_rate,
+            targets=targets,
+            target_rate=target_rate,
+        )
+
         if random.random() < self.p:
             transform_indexes = list(range(len(self.transforms)))
             if self.shuffle:
                 random.shuffle(transform_indexes)
             for i in transform_indexes:
                 tfm = self.transforms[i]
-                if isinstance(tfm, BaseWaveformTransform):
-                    samples = self.transforms[i](samples, sample_rate)
+                if isinstance(tfm, (BaseWaveformTransform, BaseCompose)):
+                    inputs = self.transforms[i](**inputs)
+
                 else:
-                    samples = self.transforms[i](samples)
-        return samples
+                    assert isinstance(tfm, torch.nn.Module)
+                    # FIXME: do we really want to support regular nn.Module?
+                    inputs.samples = self.transforms[i](inputs.samples)
+
+        return inputs.samples if self.output_type == "tensor" else inputs
 
 
 class SomeOf(BaseCompose):
@@ -96,12 +146,15 @@ class SomeOf(BaseCompose):
 
     def __init__(
         self,
-        num_transforms: typing.Union[int, typing.Tuple[int, int]],
+        num_transforms: Union[int, Tuple[int, int]],
         transforms: List[torch.nn.Module],
         p: float = 1.0,
         p_mode="per_batch",
+        output_type: Optional[str] = None,
     ):
-        super().__init__(transforms=transforms, p=p, p_mode=p_mode)
+        super().__init__(
+            transforms=transforms, p=p, p_mode=p_mode, output_type=output_type
+        )
 
         self.transform_indexes = []
         self.num_transforms = num_transforms
@@ -131,7 +184,21 @@ class SomeOf(BaseCompose):
             random.sample(self.all_transforms_indexes, num_transforms_to_apply)
         )
 
-    def forward(self, samples, sample_rate: typing.Optional[int] = None):
+    def forward(
+        self,
+        samples: Tensor = None,
+        sample_rate: Optional[int] = None,
+        targets: Optional[Tensor] = None,
+        target_rate: Optional[int] = None,
+    ) -> ObjectDict:
+
+        inputs = ObjectDict(
+            samples=samples,
+            sample_rate=sample_rate,
+            targets=targets,
+            target_rate=target_rate,
+        )
+
         if random.random() < self.p:
 
             if not self.are_parameters_frozen:
@@ -139,11 +206,15 @@ class SomeOf(BaseCompose):
 
             for i in self.transform_indexes:
                 tfm = self.transforms[i]
-                if isinstance(tfm, BaseWaveformTransform):
-                    samples = self.transforms[i](samples, sample_rate)
+                if isinstance(tfm, (BaseWaveformTransform, BaseCompose)):
+                    inputs = self.transforms[i](**inputs)
+
                 else:
-                    samples = self.transforms[i](samples)
-        return samples
+                    assert isinstance(tfm, torch.nn.Module)
+                    # FIXME: do we really want to support regular nn.Module?
+                    inputs.samples = self.transforms[i](inputs.samples)
+
+        return inputs.samples if self.output_type == "tensor" else inputs
 
 
 class OneOf(SomeOf):
@@ -152,6 +223,16 @@ class OneOf(SomeOf):
     """
 
     def __init__(
-        self, transforms: List[torch.nn.Module], p: float = 1.0, p_mode="per_batch"
+        self,
+        transforms: List[torch.nn.Module],
+        p: float = 1.0,
+        p_mode="per_batch",
+        output_type: Optional[str] = None,
     ):
-        super().__init__(num_transforms=1, transforms=transforms, p=p, p_mode=p_mode)
+        super().__init__(
+            num_transforms=1,
+            transforms=transforms,
+            p=p,
+            p_mode=p_mode,
+            output_type=output_type,
+        )

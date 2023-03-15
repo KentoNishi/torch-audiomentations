@@ -21,7 +21,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
     def setUp(self):
         self.sample_rate = 16000
         self.batch_size = 16
-        self.empty_input_audio = torch.empty(0)
+        self.empty_input_audio = torch.empty(0, 1, 16000)
         # TODO: use utils.io.Audio
         self.input_audio = (
             torch.from_numpy(
@@ -38,16 +38,20 @@ class TestAddBackgroundNoise(unittest.TestCase):
 
         self.bg_path = TEST_FIXTURES_DIR / "bg"
         self.bg_short_path = TEST_FIXTURES_DIR / "bg_short"
-        self.bg_noise_transform_guaranteed = AddBackgroundNoise(self.bg_path, 20, p=1.0)
-        self.bg_short_noise_transform_guaranteed = AddBackgroundNoise(
-            self.bg_short_path, 20, p=1.0
+        self.bg_noise_transform_guaranteed = AddBackgroundNoise(
+            self.bg_path, 20, p=1.0, output_type="dict"
         )
-        self.bg_noise_transform_no_guarantee = AddBackgroundNoise(self.bg_path, 20, p=0.0)
+        self.bg_short_noise_transform_guaranteed = AddBackgroundNoise(
+            self.bg_short_path, 20, p=1.0, output_type="dict"
+        )
+        self.bg_noise_transform_no_guarantee = AddBackgroundNoise(
+            self.bg_path, 20, p=0.0, output_type="dict"
+        )
 
     def test_background_noise_no_guarantee_with_single_tensor(self):
         mixed_input = self.bg_noise_transform_no_guarantee(
             self.input_audio, self.sample_rate
-        )
+        ).samples
         self.assertTrue(torch.equal(mixed_input, self.input_audio))
         self.assertEqual(mixed_input.size(0), self.input_audio.size(0))
 
@@ -55,7 +59,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
         with self.assertWarns(UserWarning) as warning_context_manager:
             mixed_input = self.bg_noise_transform_no_guarantee(
                 self.empty_input_audio, self.sample_rate
-            )
+            ).samples
 
         self.assertIn(
             "An empty samples tensor was passed", str(warning_context_manager.warning)
@@ -69,7 +73,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
         with self.assertWarns(UserWarning) as warning_context_manager:
             mixed_input = self.bg_noise_transform_guaranteed(
                 self.empty_input_audio, self.sample_rate
-            )
+            ).samples
 
         self.assertIn(
             "An empty samples tensor was passed", str(warning_context_manager.warning)
@@ -81,7 +85,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
     def test_background_noise_guaranteed_with_single_tensor(self):
         mixed_input = self.bg_noise_transform_guaranteed(
             self.input_audio, self.sample_rate
-        )
+        ).samples
         self.assertFalse(torch.equal(mixed_input, self.input_audio))
         self.assertEqual(mixed_input.size(0), self.input_audio.size(0))
         self.assertEqual(mixed_input.size(1), self.input_audio.size(1))
@@ -90,7 +94,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
         random.seed(42)
         mixed_inputs = self.bg_noise_transform_guaranteed(
             self.input_audios, self.sample_rate
-        )
+        ).samples
         self.assertFalse(torch.equal(mixed_inputs, self.input_audios))
         self.assertEqual(mixed_inputs.size(0), self.input_audios.size(0))
         self.assertEqual(mixed_inputs.size(1), self.input_audios.size(1))
@@ -98,7 +102,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
     def test_background_short_noise_guaranteed_with_batched_tensor(self):
         mixed_input = self.bg_short_noise_transform_guaranteed(
             self.input_audio, self.sample_rate
-        )
+        ).samples
         self.assertFalse(torch.equal(mixed_input, self.input_audio))
         self.assertEqual(mixed_input.size(0), self.input_audio.size(0))
         self.assertEqual(mixed_input.size(1), self.input_audio.size(1))
@@ -108,7 +112,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
         input_audio_cuda = self.input_audio.cuda()
         mixed_input = self.bg_short_noise_transform_guaranteed(
             input_audio_cuda, self.sample_rate
-        )
+        ).samples
         assert not torch.equal(mixed_input, input_audio_cuda)
         assert mixed_input.shape == input_audio_cuda.shape
         assert mixed_input.dtype == input_audio_cuda.dtype
@@ -118,9 +122,13 @@ class TestAddBackgroundNoise(unittest.TestCase):
         min_snr_in_db = 3
         max_snr_in_db = 30
         augment = AddBackgroundNoise(
-            self.bg_path, min_snr_in_db=min_snr_in_db, max_snr_in_db=max_snr_in_db, p=1.0
+            self.bg_path,
+            min_snr_in_db=min_snr_in_db,
+            max_snr_in_db=max_snr_in_db,
+            p=1.0,
+            output_type="dict",
         )
-        augmented_audios = augment(self.input_audios, self.sample_rate)
+        augmented_audios = augment(self.input_audios, self.sample_rate).samples
 
         self.assertEqual(tuple(augmented_audios.shape), tuple(self.input_audios.shape))
         self.assertFalse(torch.equal(augmented_audios, self.input_audios))
@@ -142,15 +150,19 @@ class TestAddBackgroundNoise(unittest.TestCase):
     def test_invalid_params(self):
         with self.assertRaises(ValueError):
             augment = AddBackgroundNoise(
-                self.bg_path, min_snr_in_db=30, max_snr_in_db=3, p=1.0
+                self.bg_path, min_snr_in_db=30, max_snr_in_db=3, p=1.0, output_type="dict"
             )
 
     def test_min_equals_max(self):
         desired_snr = 3.0
         augment = AddBackgroundNoise(
-            self.bg_path, min_snr_in_db=desired_snr, max_snr_in_db=desired_snr, p=1.0
+            self.bg_path,
+            min_snr_in_db=desired_snr,
+            max_snr_in_db=desired_snr,
+            p=1.0,
+            output_type="dict",
         )
-        augmented_audios = augment(self.input_audios, self.sample_rate)
+        augmented_audios = augment(self.input_audios, self.sample_rate).samples
 
         self.assertEqual(tuple(augmented_audios.shape), tuple(self.input_audios.shape))
         self.assertFalse(torch.equal(augmented_audios, self.input_audios))
@@ -192,6 +204,7 @@ class TestAddBackgroundNoise(unittest.TestCase):
                     max_snr_in_db=6,
                     p=1.0,
                     sample_rate=input_sample_rate,
+                    output_type="dict",
                 )
                 transform(input_audio)
             except Exception:

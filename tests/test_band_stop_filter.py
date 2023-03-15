@@ -1,12 +1,10 @@
-import unittest
-
 import numpy as np
 import torch
 
 from torch_audiomentations import BandStopFilter
 
 
-class TestBandStopFilter(unittest.TestCase):
+class TestBandStopFilter:
     def test_band_reject_filter(self):
         samples = np.array(
             [
@@ -18,9 +16,9 @@ class TestBandStopFilter(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = BandStopFilter(p=1.0)
+        augment = BandStopFilter(p=1.0, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
-        self.assertEqual(processed_samples.shape, samples.shape)
-        self.assertEqual(processed_samples.dtype, np.float32)
+        ).samples.numpy()
+        assert processed_samples.shape == samples.shape
+        assert processed_samples.dtype == np.float32

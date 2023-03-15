@@ -40,24 +40,25 @@ def ir_path():
 
 @pytest.fixture()
 def ir_transform(ir_path, sample_rate):
-    return ApplyImpulseResponse(ir_path, p=1.0, sample_rate=sample_rate)
+    return ApplyImpulseResponse(
+        ir_path, p=1.0, sample_rate=sample_rate, output_type="dict"
+    )
 
 
 @pytest.fixture()
 def ir_transform_no_guarantee(ir_path, sample_rate):
-    return ApplyImpulseResponse(ir_path, p=0.0, sample_rate=sample_rate)
+    return ApplyImpulseResponse(
+        ir_path, p=0.0, sample_rate=sample_rate, output_type="dict"
+    )
 
 
 def test_impulse_response_guaranteed_with_single_tensor_input(ir_transform, input_audio):
-    mixed_input = ir_transform(input_audio)
+    mixed_input = ir_transform(input_audio).samples
     assert mixed_input.shape == input_audio.shape
     assert not torch.equal(mixed_input, input_audio)
 
 
-@pytest.mark.parametrize(
-    "compensate_for_propagation_delay",
-    [False, True],
-)
+@pytest.mark.parametrize("compensate_for_propagation_delay", [False, True])
 def test_impulse_response_guaranteed_with_batched_tensor_input(
     ir_path, sample_rate, input_audios, compensate_for_propagation_delay
 ):
@@ -66,7 +67,8 @@ def test_impulse_response_guaranteed_with_batched_tensor_input(
         compensate_for_propagation_delay=compensate_for_propagation_delay,
         p=1.0,
         sample_rate=sample_rate,
-    )(input_audios)
+        output_type="dict",
+    )(input_audios).samples
     assert mixed_inputs.shape == input_audios.shape
     assert not torch.equal(mixed_inputs, input_audios)
 
@@ -76,7 +78,7 @@ def test_impulse_response_guaranteed_with_batched_cuda_tensor_input(
     input_audios, ir_transform
 ):
     input_audio_cuda = input_audios.cuda()
-    mixed_inputs = ir_transform(input_audio_cuda)
+    mixed_inputs = ir_transform(input_audio_cuda).samples
     assert not torch.equal(mixed_inputs, input_audio_cuda)
     assert mixed_inputs.shape == input_audio_cuda.shape
     assert mixed_inputs.dtype == input_audio_cuda.dtype
@@ -86,29 +88,31 @@ def test_impulse_response_guaranteed_with_batched_cuda_tensor_input(
 def test_impulse_response_no_guarantee_with_single_tensor_input(
     input_audio, ir_transform_no_guarantee
 ):
-    mixed_input = ir_transform_no_guarantee(input_audio)
+    mixed_input = ir_transform_no_guarantee(input_audio).samples
     assert mixed_input.shape == input_audio.shape
 
 
 def test_impulse_response_no_guarantee_with_batched_tensor_input(
     input_audios, ir_transform_no_guarantee
 ):
-    mixed_inputs = ir_transform_no_guarantee(input_audios)
+    mixed_inputs = ir_transform_no_guarantee(input_audios).samples
     assert mixed_inputs.shape == input_audios.shape
 
 
 def test_impulse_response_guaranteed_with_zero_length_samples(ir_transform):
-    empty_audio = torch.empty(0)
+    empty_audio = torch.empty(0, 1, 16000)
     with pytest.warns(UserWarning, match="An empty samples tensor was passed"):
-        mixed_inputs = ir_transform(empty_audio)
+        mixed_inputs = ir_transform(empty_audio).samples
 
     assert torch.equal(mixed_inputs, empty_audio)
 
 
 def test_impulse_response_access_file_paths(ir_path, sample_rate, input_audios):
 
-    augment = ApplyImpulseResponse(ir_path, p=1.0, sample_rate=sample_rate)
-    mixed_inputs = augment(samples=input_audios, sample_rate=sample_rate)
+    augment = ApplyImpulseResponse(
+        ir_path, p=1.0, sample_rate=sample_rate, output_type="dict"
+    )
+    mixed_inputs = augment(samples=input_audios, sample_rate=sample_rate).samples
 
     assert mixed_inputs.shape == input_audios.shape
 

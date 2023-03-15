@@ -26,8 +26,10 @@ class TestShift:
         samples = torch.arange(4)[None, None].repeat(2, 2, 1).to(device=device)
         samples[1] += 1
 
-        augment = Shift(min_shift=1, max_shift=1, shift_unit="samples", p=1.0)
-        processed_samples = augment(samples)
+        augment = Shift(
+            min_shift=1, max_shift=1, shift_unit="samples", p=1.0, output_type="dict"
+        )
+        processed_samples = augment(samples).samples
 
         assert_almost_equal(
             processed_samples.cpu(),
@@ -39,10 +41,15 @@ class TestShift:
         samples[1] += 1
 
         augment = Shift(
-            min_shift=1, max_shift=1, shift_unit="samples", rollover=False, p=1.0
+            min_shift=1,
+            max_shift=1,
+            shift_unit="samples",
+            rollover=False,
+            p=1.0,
+            output_type="dict",
         )
 
-        processed_samples = augment(samples=samples)
+        processed_samples = augment(samples=samples).samples
         assert_almost_equal(
             processed_samples,
             [[[0, 0, 1, 2], [0, 0, 1, 2]], [[0, 1, 2, 3], [0, 1, 2, 3]]],
@@ -53,10 +60,15 @@ class TestShift:
         samples[1] += 1
 
         augment = Shift(
-            min_shift=-2, max_shift=-2, shift_unit="samples", rollover=True, p=1.0
+            min_shift=-2,
+            max_shift=-2,
+            shift_unit="samples",
+            rollover=True,
+            p=1.0,
+            output_type="dict",
         )
 
-        processed_samples = augment(samples=samples)
+        processed_samples = augment(samples=samples).samples
         assert_almost_equal(
             processed_samples,
             [[[2, 3, 0, 1], [2, 3, 0, 1]], [[3, 4, 1, 2], [3, 4, 1, 2]]],
@@ -67,10 +79,15 @@ class TestShift:
         samples[1] += 1
 
         augment = Shift(
-            min_shift=0.5, max_shift=0.5, shift_unit="fraction", rollover=True, p=1.0
+            min_shift=0.5,
+            max_shift=0.5,
+            shift_unit="fraction",
+            rollover=True,
+            p=1.0,
+            output_type="dict",
         )
 
-        processed_samples = augment(samples=samples)
+        processed_samples = augment(samples=samples).samples
         assert_almost_equal(
             processed_samples,
             [[[2, 3, 0, 1], [2, 3, 0, 1]], [[3, 4, 1, 2], [3, 4, 1, 2]]],
@@ -81,9 +98,14 @@ class TestShift:
         samples[1] += 1
 
         augment = Shift(
-            min_shift=-2, max_shift=-2, shift_unit="seconds", p=1.0, sample_rate=1
+            min_shift=-2,
+            max_shift=-2,
+            shift_unit="seconds",
+            p=1.0,
+            sample_rate=1,
+            output_type="dict",
         )
-        processed_samples = augment(samples)
+        processed_samples = augment(samples).samples
 
         assert_almost_equal(
             processed_samples,
@@ -103,9 +125,10 @@ class TestShift:
             p=1.0,
             sample_rate=init_sample_rate,
             rollover=False,
+            output_type="dict",
         )
         # If sample_rate is specified in both __init__ and forward, then the latter will be used
-        processed_samples = augment(samples, sample_rate=forward_sample_rate)
+        processed_samples = augment(samples, sample_rate=forward_sample_rate).samples
         assert_almost_equal(
             processed_samples,
             [[[0, 0, 0, 1], [0, 0, 0, 1]], [[0, 0, 1, 2], [0, 0, 1, 2]]],
@@ -115,7 +138,9 @@ class TestShift:
         samples = torch.arange(4)[None, None].repeat(2, 2, 1)
         samples[1] += 1
 
-        augment = Shift(min_shift=-3, max_shift=-3, shift_unit="seconds", p=1.0)
+        augment = Shift(
+            min_shift=-3, max_shift=-3, shift_unit="seconds", p=1.0, output_type="dict"
+        )
         with pytest.raises(RuntimeError):
             augment(samples)
 
@@ -126,8 +151,10 @@ class TestShift:
         torch.manual_seed(42)
 
         samples = torch.arange(4)[None, None].repeat(1000, 2, 1)
-        augment = Shift(min_shift=-1, max_shift=1, shift_unit="samples", p=1.0)
-        processed_samples = augment(samples)
+        augment = Shift(
+            min_shift=-1, max_shift=1, shift_unit="samples", p=1.0, output_type="dict"
+        )
+        processed_samples = augment(samples).samples
 
         applied_shift_counts = {-1: 0, 0: 0, 1: 0}
         for i in range(samples.shape[0]):

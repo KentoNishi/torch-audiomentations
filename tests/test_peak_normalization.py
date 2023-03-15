@@ -20,10 +20,10 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(p=1.0)
+        augment = PeakNormalization(p=1.0, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
 
         assert_almost_equal(
             processed_samples,
@@ -49,10 +49,12 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(apply_to="only_too_loud_sounds", p=1.0)
+        augment = PeakNormalization(
+            apply_to="only_too_loud_sounds", p=1.0, output_type="dict"
+        )
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
 
         assert_almost_equal(
             processed_samples,
@@ -75,10 +77,10 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(p=1.0)
+        augment = PeakNormalization(p=1.0, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
 
         assert_almost_equal(
             processed_samples,
@@ -99,10 +101,10 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(p=1.0)
+        augment = PeakNormalization(p=1.0, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
 
         assert_almost_equal(
             processed_samples,
@@ -124,10 +126,10 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(p=0.0)
+        augment = PeakNormalization(p=0.0, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
 
         assert_equal(
             processed_samples,
@@ -154,10 +156,10 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(p=1.0)
+        augment = PeakNormalization(p=1.0, output_type="dict")
         processed_samples = (
             augment(samples=torch.from_numpy(samples).cuda(), sample_rate=sample_rate)
-            .cpu()
+            .samples.cpu()
             .numpy()
         )
 
@@ -179,10 +181,10 @@ class TestPeakNormalization(unittest.TestCase):
         samples_batch = np.stack([samples] * 1337, axis=0)
         sample_rate = 16000
 
-        augment = PeakNormalization(p=0.5)
+        augment = PeakNormalization(p=0.5, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples_batch), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
         self.assertEqual(processed_samples.dtype, np.float32)
 
         num_unprocessed_examples = 0
@@ -208,12 +210,14 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(p=1.0)
-        _ = augment(samples=torch.from_numpy(samples1), sample_rate=sample_rate).numpy()
+        augment = PeakNormalization(p=1.0, output_type="dict")
+        _ = augment(
+            samples=torch.from_numpy(samples1), sample_rate=sample_rate
+        ).samples.numpy()
         augment.freeze_parameters()
         processed_samples2 = augment(
             samples=torch.from_numpy(samples2), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
         augment.unfreeze_parameters()
 
         assert_almost_equal(
@@ -239,10 +243,10 @@ class TestPeakNormalization(unittest.TestCase):
         )
         sample_rate = 16000
 
-        augment = PeakNormalization(apply_to="all", p=1.0)
+        augment = PeakNormalization(apply_to="all", p=1.0, output_type="dict")
         processed_samples = augment(
             samples=torch.from_numpy(samples), sample_rate=sample_rate
-        ).numpy()
+        ).samples.numpy()
 
         assert_almost_equal(
             processed_samples,
